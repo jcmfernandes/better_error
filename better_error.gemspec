@@ -6,7 +6,7 @@ Gem::Specification.new do |spec|
   spec.name          = "better_error"
   spec.version       = "0.1.0"
   spec.authors       = ["Joao Fernandes"]
-  spec.email         = ["jfernandes@salsify.com"]
+  spec.email         = ["joao@salsify.com"]
 
   spec.summary       = %q{A StandardError with extra goodness.}
   spec.homepage      = "https://github.com/salsify/better_error."
