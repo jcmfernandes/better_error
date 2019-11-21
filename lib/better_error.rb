@@ -8,7 +8,6 @@ require 'active_support/core_ext/string/inflections'
 require 'active_support/core_ext/array/wrap'
 
 class ::BetterError < ::StandardError
-
   attr_accessor :id
   attr_reader   :context
   attr_writer   :caused_by
@@ -18,18 +17,16 @@ class ::BetterError < ::StandardError
 
     klass = ::Class.new(superclass)
 
-    unless pretty_name.nil?
-      case pretty_name
-      when ::Proc
-        klass.define_singleton_method(:pretty_name, &pretty_name)
-      else
-        klass.define_singleton_method(:pretty_name) { pretty_name }
-      end
+    case pretty_name
+    when nil
+      nil
+    when ::Proc
+      klass.define_singleton_method(:pretty_name, &pretty_name)
+    else
+      klass.define_singleton_method(:pretty_name) { pretty_name }
     end
 
-    unless id_generator.nil?
-      klass.define_singleton_method(:id_generator, &id_generator)
-    end
+    klass.define_singleton_method(:id_generator, &id_generator) unless id_generator.nil?
 
     klass
   end
@@ -80,6 +77,7 @@ class ::BetterError < ::StandardError
     loop do
       result << error
       return result if error.cause.nil?
+
       error = error.cause
     end
   end
@@ -126,7 +124,7 @@ class ::BetterError < ::StandardError
   end
 
   def inspect
-    "#<#{self.class.name}:0x#{object_id.to_s(16)} id: #{id}, details: #{details}, context: #{context}, has_cause?: #{!cause.nil?}>"
+    "#<#{self.class.name}:0x#{object_id.to_s(16)} id: #{id}, details: #{details}, context: #{context}, cause: #{cause.inspect}>"
   end
 
   protected
@@ -173,5 +171,4 @@ class ::BetterError < ::StandardError
       hash[:backtrace] = error.backtrace if include_backtrace
     end
   end
-
 end
