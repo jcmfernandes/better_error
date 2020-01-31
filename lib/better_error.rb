@@ -7,6 +7,8 @@ require 'active_support/core_ext/hash/indifferent_access'
 require 'active_support/core_ext/string/inflections'
 require 'active_support/core_ext/array/wrap'
 
+require 'better_error/version'
+
 class ::BetterError < ::StandardError
   attr_accessor :id
   attr_reader   :context
@@ -112,8 +114,7 @@ class ::BetterError < ::StandardError
     tree = [self].concat(children).reverse!
     tree.map!.with_index do |error, i|
       hash =
-        case error
-        when ::BetterError
+        if error.is_a?(::BetterError)
           error.as_hash(include_backtrace: include_backtrace, include_children: false)
         else
           hash_from_worst_error(error, include_backtrace: include_backtrace)
