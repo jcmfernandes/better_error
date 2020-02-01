@@ -72,15 +72,13 @@ class ::BetterError < ::StandardError
   end
 
   def children
-    return @children if defined?(@children)
-
     result = []
     error = cause
-    return @children = result if error.nil?
+    return result if error.nil?
 
     loop do
       result << error
-      return @children = result if error.cause.nil?
+      return result if error.cause.nil?
 
       error = error.cause
     end
@@ -95,13 +93,13 @@ class ::BetterError < ::StandardError
   alias_method :caused_by, :cause
 
   def root_cause
-    return @root_cause if defined?(@root_cause) || cause.nil?
+    return if cause.nil?
 
     result = nil
     error = cause
     loop do
       result = error
-      return @root_cause = result if error.cause.nil?
+      return result if error.cause.nil?
 
       error = error.cause
     end
