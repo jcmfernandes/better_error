@@ -18,17 +18,8 @@ class ::BetterError < ::StandardError
     raise ::ArgumentError, "#{super_class} isn't a subclass of #{name}" unless superclass == self || superclass.ancestors.include?(self)
 
     klass = ::Class.new(superclass)
-
-    case pretty_name
-    when nil
-      nil
-    when ::Proc
-      klass.define_singleton_method(:pretty_name, &pretty_name)
-    else
-      klass.define_singleton_method(:pretty_name) { pretty_name }
-    end
-
-    klass.define_singleton_method(:id_generator, &id_generator) unless id_generator.nil?
+    klass.pretty_name = pretty_name unless pretty_name.nil?
+    klass.id_generator = id_generator unless id_generator.nil?
 
     klass
   end
@@ -37,11 +28,20 @@ class ::BetterError < ::StandardError
     SecureRandom.uuid.freeze
   end
 
+  def self.id_generator=(generator)
+    define_singleton_method(:id_generator, &generator)
+  end
+
   def self.pretty_name
     words = name.demodulize.scan(/[A-Z][a-z]+/.freeze)
     return name if words.pop != 'Error' || words.empty?
 
     words.join(' ').freeze
+  end
+
+  def self.pretty_name=(pretty_name)
+    block = pretty_name.is_a?(::Proc) ? pretty_name : proc { pretty_name }
+    define_singleton_method(:pretty_name, &block)
   end
 
   def initialize(detail = nil,
@@ -61,7 +61,7 @@ class ::BetterError < ::StandardError
   def <<(data)
     case data
     when ::Hash
-      context.merge!(data)
+      @context.merge!(data)
     when ::Array
       @details.concat(data)
     else
@@ -72,13 +72,15 @@ class ::BetterError < ::StandardError
   end
 
   def children
+    return @children if defined?(@children)
+
     result = []
     error = cause
-    return result if error.nil?
+    return @children = result if error.nil?
 
     loop do
       result << error
-      return result if error.cause.nil?
+      return @children = result if error.cause.nil?
 
       error = error.cause
     end
@@ -93,35 +95,52 @@ class ::BetterError < ::StandardError
   alias_method :caused_by, :cause
 
   def root_cause
-    children.last
+    return @root_cause if defined?(@root_cause) || cause.nil?
+
+    result = nil
+    error = cause
+    loop do
+      result = error
+      return @root_cause = result if error.cause.nil?
+
+      error = error.cause
+    end
   end
 
-  def details(include_children: false)
-    details_from_context(include_children: include_children, context: context)
+  def details
+    @details.map do |template|
+      ::Liquid::Template.parse(template).render(context)
+    end
   end
 
-  def detail(include_children: false)
-    details(include_children: include_children).join("\n")
+  def detail(join_with: "\n")
+    details.join(join_with)
   end
 
   def to_s
-    detail.then { |string| string.empty? ? super : string }
+    string = detail
+    string.empty? ? super : string
   end
 
   def to_h(include_children: false, include_backtrace: false)
-    return as_hash(include_backtrace: include_backtrace, include_children: true) unless include_children
+    return as_hash(include_backtrace: include_backtrace) unless include_children
 
-    tree = [self].concat(children).reverse!
-    tree.map!.with_index do |error, i|
+    child = nil
+    children.reverse_each do |error|
       hash =
         if error.is_a?(::BetterError)
-          error.as_hash(include_backtrace: include_backtrace, include_children: false)
+          error.as_hash(include_backtrace: include_backtrace)
         else
           hash_from_worst_error(error, include_backtrace: include_backtrace)
         end
-      hash.merge!(child: i > 0 ? tree[i - 1] : nil)
+      hash[:child] = child unless child.nil?
+
+      child = hash
     end
-    tree.last
+
+    result = self.as_hash(include_backtrace: include_backtrace)
+    result[:child] = child unless child.nil?
+    result
   end
 
   def inspect
@@ -130,36 +149,16 @@ class ::BetterError < ::StandardError
 
   protected
 
-  def as_hash(include_backtrace:, include_children:)
+  def as_hash(include_backtrace:)
     {
       id: id,
       name: self.class.name,
       pretty_name: self.class.pretty_name,
-      details: details(include_children: include_children),
+      details: details,
       context: context,
     }.tap do |hash|
       hash[:backtrace] = backtrace if include_backtrace
     end
-  end
-
-  def details_from_context(include_children:, context:)
-    result = @details.map do |detail|
-      ::Liquid::Template.parse(detail).render(context)
-    end
-
-    if include_children
-      children_details = children.flat_map do |error|
-        case error
-        when ::BetterError
-          error.details_from_context(include_children: false, context: context)
-        else
-          error.message
-        end
-      end
-      result.concat(children_details)
-    end
-
-    result
   end
 
   private
