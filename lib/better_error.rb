@@ -129,7 +129,7 @@ class ::BetterError < ::StandardError
     children.reverse_each do |error|
       hash =
         if error.is_a?(::BetterError)
-          error.as_hash(include_backtrace: include_backtrace)
+          error.to_h(include_children: false, include_backtrace: include_backtrace)
         else
           hash_from_worst_error(error, include_backtrace: include_backtrace)
         end
@@ -138,7 +138,7 @@ class ::BetterError < ::StandardError
       child = hash
     end
 
-    result = self.as_hash(include_backtrace: include_backtrace)
+    result = as_hash(include_backtrace: include_backtrace)
     result[:child] = child unless child.nil?
     result
   end
@@ -147,7 +147,7 @@ class ::BetterError < ::StandardError
     "#<#{self.class.name}:0x#{object_id.to_s(16)} id: #{id}, details: #{details}, context: #{context}, cause: #{cause.inspect}>"
   end
 
-  protected
+  private
 
   def as_hash(include_backtrace:)
     {
@@ -155,13 +155,11 @@ class ::BetterError < ::StandardError
       name: self.class.name,
       pretty_name: self.class.pretty_name,
       details: details,
-      context: context,
+      context: context
     }.tap do |hash|
       hash[:backtrace] = backtrace if include_backtrace
     end
   end
-
-  private
 
   def hash_from_worst_error(error, include_backtrace:)
     {
